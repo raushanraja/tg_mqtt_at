@@ -14,6 +14,7 @@ class MessageType(Enum):
     SMS = 1
     LOCATION = 2
     LocationReply = 3
+    Error = 4
 
 @dataclass
 class SMSData:

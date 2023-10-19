@@ -52,6 +52,8 @@ async def handle_queue(transport):
                         continue
                     elif message.message.startswith('+QGPSLOC:'):
                         asyncio.create_task(at_rm.handle_location(message.message))
+                    elif message.message.find('ERROR:') != -1:
+                        asyncio.create_task(at_rm.handle_errors(message.message))
                     elif message.message != '':
                         logger.debug(f'Sending TG message: {message.message}')
                         asyncio.create_task(bot.send_message(chat_id=CHAT_ID, text=message.message))

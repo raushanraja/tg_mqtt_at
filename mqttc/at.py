@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 from q import shared_queue, Message, Direction, MessageType
+from errorcodes import ErrorCodes
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -41,7 +42,6 @@ class AT:
 class ATReplyManage:
     async def handle_location(self, msg: str):
         first_line = msg.split('\n')[0]
-        print(first_line)
         command, location = first_line.split(':')
         utc, lat, lon, hdop, alt, fix, cog, spkm, spkn, date, nsat = location.split(
             ',')
@@ -50,3 +50,9 @@ class ATReplyManage:
         to_google_maps = f'https://www.google.com/maps/place/{lat},{lon}'
         await shared_queue.put(Message(message=json.dumps(json_location), direction=Direction.TG, message_type=MessageType.LocationReply))
         await shared_queue.put(Message(message=to_google_maps, direction=Direction.TG, message_type=MessageType.LocationReply))
+
+
+    async def handle_errors(self, msg: str):
+        error_code = msg.split(':')[1].strip()
+        error_message = ErrorCodes.get(int(error_code), 'Unknown error')
+        await shared_queue.put(Message(message=f'Error: {error_message}', direction=Direction.TG, message_type=MessageType.NONE))
