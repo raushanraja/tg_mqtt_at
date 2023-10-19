@@ -1,4 +1,5 @@
 import uuid
+from typing import List, Tuple, Union
 
 # MQTT Packet Types
 RESERVED = 0
@@ -112,6 +113,40 @@ RETURN_CODES = {
     NOT_AUTHORIZED: "Not authorized",
 }
 
+def vbi_encode(value: int) -> tuple[ bytes, int ]:
+    """Encode a variable byte integer.
+       returns (bytes, bytes_consumed)
+    """
+
+    if value < 0:
+        raise ValueError("Value must be >= 0")
+
+    encoded = bytearray()
+    while True:
+        encoded.append(value % 128)
+        value //= 128
+        if value > 0:
+            encoded[-1] |= 128
+        else:
+            break
+    return bytes(encoded), len(encoded)
+
+
+def vbi_decode(data: bytes) -> tuple[ int, int ]:
+    """Decode a variable byte integer.
+       returns (value, bytes_consumed)
+    """
+
+    value = 0
+    shift = 0
+    bytes_consumed = 0
+    for byte in data:
+        value += (byte & 127) << shift
+        shift += 7
+        bytes_consumed += 1
+        if not byte & 128:
+            break
+    return value, bytes_consumed
 
 def connect_flags_to_str(flags: hex) -> str:
     flags = int(flags, 16)
@@ -346,7 +381,8 @@ class ConnectPacket:
             password = self.password.encode()
             password_length = bytes([0, len(password)])
             variable_header += password_length + password
-        packet += bytes([len(variable_header)])
+        packlen, _ = vbi_encode(len(variable_header))
+        packet += packlen 
         packet += variable_header
         # Variable header
         return packet
@@ -384,7 +420,8 @@ class SubsribePacket:
             topic_length = bytes([0, len(topic)])
             qos = bytes([self.qos])
             payload = packet_id + property_length + property_id + property_value + topic_length + topic + qos
-            packet += bytes([len(payload)])
+            packlen, _ = vbi_encode(len(payload))
+            packet += packlen
             packet += payload
             return packet
 
@@ -424,7 +461,6 @@ class PublishPacket:
     def parse(cls, packet: bytes, qos=0):
         # Parse the variable header
         topic_length = packet[0:2]
-        print(f"topic_length: {topic_length}")
         topic = packet[2:2 + int.from_bytes(topic_length, byteorder='big')]
         packet_id = None
         if qos > 0:
@@ -452,7 +488,8 @@ class PublishPacket:
                 self.packet_id = uuid.uuid4().int & 0xFFFF 
             packet_id = bytes([0, self.packet_id])
             variable_header += packet_id
-        packet += bytes([len(variable_header) + len(self.payload.encode('utf-8'))])
+        packlen, _ = vbi_encode(len(variable_header) + len(self.payload.encode('utf-8')))
+        packet += packlen
         packet += variable_header
         # Variable header
         packet += self.payload.encode('utf-8')
@@ -460,6 +497,11 @@ class PublishPacket:
     
     def __str__(self):
         return "PublishPacket(%s, %s, %s, %s, %s, %s)" % (self.topic, self.payload, self.qos, self.retain, self.dup, self.packet_id)
+
+
+
+
+
 
 class MQTTException(Exception):
     pass

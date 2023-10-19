@@ -4,13 +4,13 @@ from asyncio import Protocol, Transport, Future
 import random
 from os import getenv
 
-from main import ConnectPacket, PingPacket, PublishPacket, SubsribePacket, control_field_to_str 
+from main import ConnectPacket, PingPacket, PublishPacket, SubsribePacket, control_field_to_str, vbi_decode 
 from tg import bot
 from q import shared_queue, Message, Direction, MessageType, SMSData
 from at import AT
 
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger('mqttc')
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger('pmqtt')
 at = AT()
 
 KA_TIMEOUT = 60
@@ -79,13 +79,12 @@ class MqttProtocol(Protocol):
             self.conn_lost.set_result(True)
 
         packet_type = control_field_to_str(control_byte[0])
-        length = data[1]
-        packet = data[2:2+length]
+        length, bytes_consumed = vbi_decode(data[1:])
+        packet = data[1+bytes_consumed:]
 
-        # logger.debug(f'Packet type: { packet_type }')
+        logger.info(f'Received: { packet_type }')
 
         if packet_type == 'PUBLISH':
-            logger.debug(f'Publish packet: { packet }')
             parsed = PublishPacket.parse(packet)
             logger.debug(f'Parsed packet: { parsed.payload }')
             shared_queue.put_nowait(Message(parsed.payload, Direction.TG))
