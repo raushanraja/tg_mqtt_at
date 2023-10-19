@@ -50,6 +50,7 @@ class ReplyHander:
             self.rm.remove(reply)
             logger.debug(f"Sending SMS {reply_data}")
             await shared_queue.put(Message(message=reply_data, direction=Direction.MQTT, message_type=MessageType.SMS))
+    
 
 
 class ReplyData:

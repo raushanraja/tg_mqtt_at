@@ -12,6 +12,8 @@ class Direction(Enum):
 class MessageType(Enum):
     NONE = 0
     SMS = 1
+    LOCATION = 2
+    LocationReply = 3
 
 @dataclass
 class SMSData:

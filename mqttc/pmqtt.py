@@ -7,11 +7,12 @@ from os import getenv
 from main import ConnectPacket, PingPacket, PublishPacket, SubsribePacket, control_field_to_str, vbi_decode 
 from tg import bot
 from q import shared_queue, Message, Direction, MessageType, SMSData
-from at import AT
+from at import AT, ATReplyManage
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger('pmqtt')
 at = AT()
+at_rm = ATReplyManage()
 
 KA_TIMEOUT = 60
 CHAT_ID = getenv('CHAT_ID')
@@ -37,6 +38,8 @@ async def handle_queue(transport):
                 if isinstance(message.message, SMSData):
                     sms_data: SMSData = message.message
                     asyncio.create_task(at.send_message(sms_data.message, sms_data.number, publish, transport, wait_for_reply))
+            elif message.message_type == MessageType.LOCATION:
+                asyncio.create_task(at.get_location(message.message, publish, transport))
             else:
                 if isinstance(message.message, str):
                     publish('input', message.message, transport)
@@ -47,7 +50,9 @@ async def handle_queue(transport):
                         future_waits['sms'].set_result(True)
                         del future_waits['sms']
                         continue
-                    if message.message != '':
+                    elif message.message.startswith('+QGPSLOC:'):
+                        asyncio.create_task(at_rm.handle_location(message.message))
+                    elif message.message != '':
                         logger.debug(f'Sending TG message: {message.message}')
                         asyncio.create_task(bot.send_message(chat_id=CHAT_ID, text=message.message))
             except Exception as e:
