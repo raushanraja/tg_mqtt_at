@@ -20,22 +20,21 @@ reply_manager = ReplyManager(bot)
 async def send_sms(message):
     markup = types.ForceReply(selective=False)
     sent_message = await bot.send_message(message.chat.id, "Enter the number to send SMS", reply_markup=markup)
-    reply_manager.add(
-        ReplyData(message.chat.id, sent_message.id, ReplyManageType.SMSNUMBER))
+    reply_manager.add( ReplyData(message.chat.id, sent_message.id, ReplyManageType.SMSNUMBER))
 
 
 @bot.message_handler(commands=['le'])
-async def stop_location(message):
+async def stop_location(_):
     await shared_queue.put(Message(message='stop', direction=Direction.MQTT, message_type=MessageType.LOCATION))
 
 
 @bot.message_handler(commands=['ls'])
-async def start_location(message):
+async def start_location(_):
     await shared_queue.put(Message(message='start', direction=Direction.MQTT, message_type=MessageType.LOCATION))
 
 
 @bot.message_handler(commands=['lg'])
-async def get_location(message):
+async def get_location(_):
     await shared_queue.put(Message(message='get', direction=Direction.MQTT, message_type=MessageType.LOCATION))
 
 

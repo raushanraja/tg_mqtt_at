@@ -36,6 +36,7 @@ class ReplyHander:
             pass
         else:
             await self.bot.send_message(message.chat.id, "Invalid number")
+            return
 
         markup = types.ForceReply(selective=False)
         sent_message = await self.bot.send_message(message.chat.id, "Enter the message to send as SMS", reply_markup=markup)

@@ -46,14 +46,12 @@ async def handle_queue(transport):
         elif message.direction == Direction.TG:
             try:
                 if isinstance(message.message, str):
-                    if message.message.startswith('OK') and message.message.endswith('>'):
+                    if message.message.startswith('OK') and message.message.endswith('>') or message.message == '>':
                         future_waits['sms'].set_result(True)
                         del future_waits['sms']
                         continue
-                    elif message.message.startswith('+QGPSLOC:'):
-                        asyncio.create_task(at_rm.handle_location(message.message))
-                    elif message.message.find('ERROR:') != -1:
-                        asyncio.create_task(at_rm.handle_errors(message.message))
+                    elif at_rm.handle_message(message.message, bot):
+                        continue
                     elif message.message != '':
                         logger.debug(f'Sending TG message: {message.message}')
                         asyncio.create_task(bot.send_message(chat_id=CHAT_ID, text=message.message))
@@ -79,27 +77,30 @@ class MqttProtocol(Protocol):
         self.conn_lost.set_result(True)
 
     def data_received(self, data: bytes) -> None:
-        control_byte = data[0:1]
+        try:
+            control_byte = data[0:1]
 
-        if control_byte == b'':
-            logger.debug('Connection closed')
-            self.conn_lost.set_result(True)
+            if control_byte == b'':
+                logger.debug('Connection closed')
+                self.conn_lost.set_result(True)
 
-        packet_type = control_field_to_str(control_byte[0])
-        length, bytes_consumed = vbi_decode(data[1:])
-        packet = data[1+bytes_consumed:]
+            packet_type = control_field_to_str(control_byte[0])
+            length, bytes_consumed = vbi_decode(data[1:])
+            packet = data[1+bytes_consumed:]
 
-        logger.info(f'Received: { packet_type }')
+            logger.info(f'Received: { packet_type }')
 
-        if packet_type == 'PUBLISH':
-            parsed = PublishPacket.parse(packet)
-            logger.debug(f'Parsed packet: { parsed.payload }')
-            shared_queue.put_nowait(Message(parsed.payload, Direction.TG))
+            if packet_type == 'PUBLISH':
+                parsed = PublishPacket.parse(packet)
+                logger.debug(f'Parsed packet: { parsed.payload }')
+                shared_queue.put_nowait(Message(parsed.payload, Direction.TG))
 
-        elif packet_type == 'CONNACK':
-            asyncio.get_event_loop().call_later(10, self.send_ping)
-            logger.debug('Connection accepted, subscribing to input topic')
-            self.subscribe('output')
+            elif packet_type == 'CONNACK':
+                asyncio.get_event_loop().call_later(10, self.send_ping)
+                logger.debug('Connection accepted, subscribing to input topic')
+                self.subscribe('output')
+        except Exception as e:
+            logger.error(f'Error parsing packet: {e}')
 
     def subscribe(self, topic: str):
         packet = SubsribePacket(
