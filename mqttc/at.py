@@ -4,7 +4,7 @@ import json
 import logging
 
 from telebot.async_telebot import AsyncTeleBot
-from q import shared_queue, Message, Direction, MessageType
+from q import SignalStrength, shared_queue, Message, Direction, MessageType
 from errorcodes import ErrorCodes
 
 logger = logging.getLogger(__name__)
@@ -53,8 +53,30 @@ class ATReplyManage:
     method_map = {
         '+CMTI:': 'read_message',
         '+QGPSLOC:': 'handle_location',
-        '+CMS ERROR:': 'handle_errors'
+        '+CMS ERROR:': 'handle_errors',
+        '+QCSQ:': 'handle_signal_strength',
+        '+QSPN': 'handle_service_provider_name',
+        '+QNWINFO:': 'handle_network_info',
+        '+CSQ:': 'handle_signal_quality_report',
     }
+
+    async def handle_signal_strength(self, msg_array: str, bot: AsyncTeleBot):
+        command, new_message = msg_array.split(':')
+        new_message = new_message.strip()
+        strength = None
+        if new_message:
+            msg_array: list[str] = new_message.split(',')
+            if "LTE" in msg_array[0]:
+                strength = SignalStrength(
+                    sysmode= msg_array[0].replace('"', ''),
+                    lte_rssi=msg_array[1],
+                    lte_rsrp=msg_array[2],
+                    lte_sinr=msg_array[3],
+                    lte_rsrq=msg_array[4].split('\r\n\r')[0],
+                )
+            else:
+                strength = SignalStrength(sysmode=msg_array[0])
+        await bot.send_message(CHAT_ID, f'{strength}')
 
     def handle_message(self, msg: str, bot: AsyncTeleBot):
         for key in self.method_map.keys():
